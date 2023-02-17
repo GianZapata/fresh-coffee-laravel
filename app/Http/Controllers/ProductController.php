@@ -51,6 +51,9 @@ class ProductController extends Controller
     public function update(Request $request, Product $product)
     {
         //
+        $product->available = $request->available ?? $product->available;
+        $product->save();
+        return $product;
     }
 
     /**

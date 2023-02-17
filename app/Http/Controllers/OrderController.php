@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\OrderCollection;
 use App\Models\Order;
+use App\Models\OrderProduct;
 use App\Models\Product;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
@@ -19,6 +22,11 @@ class OrderController extends Controller
     public function index()
     {
         //
+        return new OrderCollection(
+            Order::with('user','products')
+                ->where('isPaid', false)
+                ->get()
+        );
     }
 
     /**
@@ -30,6 +38,8 @@ class OrderController extends Controller
     public function store(Request $request)
     {          
         $taxRate = 0.16;
+        
+        DB::beginTransaction();
         try {
             
             $orderItems = $request->orderItems;
@@ -67,10 +77,12 @@ class OrderController extends Controller
             $order->numberOfItems = $request->numberOfItems;
             $order->save();
 
-            foreach ($products as $product) {
-                $productId = $product['productId'];
-                $quantity = $product['quantity'];
-                $price = $product['price'];
+            foreach ($orderItems as $orderItem) {
+                
+                $productId = $orderItem['productId'];
+                $quantity = $orderItem['quantity'];
+                $price = $orderItem['price'];
+
                 $order
                     ->products()
                     ->attach($productId, [
@@ -83,8 +95,11 @@ class OrderController extends Controller
 
             }        
 
+            DB::commit();
             return response()->json($order, 201);
         } catch (\Throwable $th) {
+            DB::rollBack();
+            Log::error($th->getMessage());
             return response()->json([
                 'message' => 'Error al crear el pedido',
             ], 500);
@@ -113,6 +128,11 @@ class OrderController extends Controller
     public function update(Request $request, Order $order)
     {
         //
+
+        $order->isPaid = true;
+        $order->save();
+
+        return $order;
     }
 
     /**
